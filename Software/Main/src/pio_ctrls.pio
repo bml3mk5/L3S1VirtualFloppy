@@ -1,0 +1,77 @@
+; pio_ctrls.pio
+;
+; Copyright (c) 2024 Sasaji
+;
+
+.define PUBLIC PIO_PARALLEL_READ_SM     0
+.define PUBLIC PIO_PARALLEL_WRITE_SM    1
+.define PUBLIC PIO_BUZZER_SM            2
+
+.define PUBLIC PARALLEL_PIN_SIDE        14  ; for debug
+
+.define PUBLIC PARALLEL_PIN_COUNT       14
+.define PUBLIC PARALLEL_PIN_D_COUNT     8
+.define PUBLIC PARALLEL_PIN_A_COUNT     4
+.define PUBLIC PARALLEL_PIN_WE_N        12
+.define PUBLIC PARALLEL_PIN_RE_N        13
+
+.define PUBLIC PARALLEL_RE_IRQ_NUM      0
+.define PUBLIC PARALLEL_WE_IRQ_NUM      1
+
+/* parallel io read */
+.program pio_parallel_read
+//.side_set 1 opt
+.wrap_target
+    wait 0 pin PARALLEL_PIN_RE_N        ; wait RE
+//    jmp pin read_end                    ; RE keep low level?
+    irq set 0 rel                       ; fire IRQ
+    mov isr, pins ; side 1              ; PINS -> ISR
+    push noblock                        ; ISR -> RX FIFO (address)
+    mov osr, !null                      ; all 1 -> OSR
+    out pindirs, PARALLEL_PIN_D_COUNT   ; set output for data bus
+    pull block                          ; TX FIFO -> OSR
+    mov pins, osr                       ; OSR -> PINS (data bus)
+    wait 1 pin PARALLEL_PIN_RE_N        ; wait RE
+    mov osr, null ; side 0              ; all 0 -> OSR
+    out pindirs, PARALLEL_PIN_D_COUNT   ; set input for data bus
+    wait 0 irq 0                        ; wait until irq is off
+read_end:
+    nop
+.wrap
+
+/* parallel io write */
+.program pio_parallel_write
+//.side_set 1 opt
+.wrap_target
+    wait 0 pin PARALLEL_PIN_WE_N        ; wait WE
+//    jmp pin write_end                   ; WE keep low level?
+    irq set 0 rel                       ; fire IRQ
+    mov isr, pins ; side 1              ; PINS -> ISR
+    push noblock                        ; ISR -> RX FIFO (address)
+    wait 1 pin PARALLEL_PIN_WE_N        ; wait WE
+    mov isr, pins ; side 0              ; all pins -> ISR
+    push noblock                        ; ISR -> RX FIFO
+    wait 0 irq 0                        ; wait until irq is off
+write_end:
+    nop
+.wrap
+
+/* buzzer */
+/*
+.program pio_buzzer
+.define PUBLIC start_pin 27
+.define PUBLIC clk_latency 3
+.side_set 1 opt
+.wrap_target
+    pull block
+    mov x, osr
+loop1:
+    nop [clk_latency] side 1
+    jmp x-- loop1 [clk_latency] side 0
+    nop side 0
+.wrap
+*/
+
+% c-sdk {
+// this is a raw helper function for use by the user which sets up the GPIO output, and configures the SM to output on a particular pin
+%}
