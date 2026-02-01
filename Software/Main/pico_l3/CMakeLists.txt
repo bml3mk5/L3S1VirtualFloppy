@@ -43,7 +43,7 @@ set(SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR}/../src)
 add_executable(${PROJECT})
 
 pico_set_program_name(${PROJECT} "L3VirtualFloppy")
-pico_set_program_version(${PROJECT} "0.2")
+pico_set_program_version(${PROJECT} "0.2.2")
 
 target_compile_definitions(${PROJECT} PRIVATE
   PICO_STACK_SIZE=4096
@@ -72,8 +72,12 @@ target_sources(${PROJECT} PRIVATE
   ${SOURCE_DIR}/l3font.c
   ${SOURCE_DIR}/display.c
   ${SOURCE_DIR}/display_btn.c
+  ${SOURCE_DIR}/display_disk.c
   ${SOURCE_DIR}/display_storage.c
+  ${SOURCE_DIR}/display_menu.c
   ${SOURCE_DIR}/display_setting.c
+  ${SOURCE_DIR}/display_reset.c
+  ${SOURCE_DIR}/display_message.c
   ${SOURCE_DIR}/simple_fifo.c
   ${SOURCE_DIR}/simple_list.c
   ${SOURCE_DIR}/config.c

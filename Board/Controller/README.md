@@ -4,6 +4,8 @@
 
  * KiCAD 8
 
+## ファイル
+
     I2C_LED_BTN_CH32V.kicad_pro ... プロジェクトファイル for KiCAD
     I2C_LED_BTN_CH32V.kicad_sch ... 回路図ファイル for KiCAD
     I2C_LED_BTN_CH32V.kicad_pcb ... PCB設計ファイル for KiCAD
@@ -17,6 +19,8 @@
 ## Using Tools
 
  * KiCAD 8
+
+## Files
 
     I2C_LED_BTN_CH32V.kicad_pro ... Project file for KiCAD
     I2C_LED_BTN_CH32V.kicad_sch ... Schematics file for KiCAD

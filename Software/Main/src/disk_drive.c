@@ -15,7 +15,9 @@
 #include "event.h"
 #include "common.h"
 #include "display.h"
+#include "display_disk.h"
 #include "fdc_common.h"
+#include "config.h"
 #include "utils.h"
 
 // time per round (usec.) 300rpm
@@ -31,6 +33,7 @@
 typedef struct st_disk_drives {
     uint8_t     motor_on;
     uint8_t     index_hole_on;
+    uint8_t     drive_type;
     alarm_id_t  motor_off_id;
     uint32_t    motor_time;   ///< motor start/stop time;
     alarm_id_t  index_hole_id;
@@ -71,13 +74,20 @@ void disk_drive_init()
 void disk_drive_change_type(int type)
 {
     switch(type) {
-    case 1:
+    case DISK_DRIVE_TYPE_2HD:
+        g_drvs.drive_type = DISK_DRIVE_TYPE_2HD;
         g_drvs.one_round_time = DISK_DRIVE_ONE_ROUND_TIME_2HD;
         break;
     default:
+        g_drvs.drive_type = DISK_DRIVE_TYPE_2D;
         g_drvs.one_round_time = DISK_DRIVE_ONE_ROUND_TIME_2D;
         break;
     }
+}
+
+int disk_drive_get_type()
+{
+    return g_drvs.drive_type;
 }
 
 /*======================================================================*/
@@ -97,6 +107,11 @@ void disk_drive_unmount(int drv)
     disk_d88_unmount(drv);
 //    disk_drive_clr_status_callback(DISK_DRIVE_MOTOR);
     disk_drive_motor_off_callback();
+}
+
+void disk_drive_append_header(FIL *fp, int image_type)
+{
+    disk_d88_append_header(fp, config_get_disk_type());
 }
 
 /*======================================================================*/

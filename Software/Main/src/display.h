@@ -20,10 +20,15 @@
 #include "i2c_led_btn.h"
 #include "simple_list.h"
 
+//#define RCURSOR '>'
+#define RCURSOR 0x01
+
 enum en_display_phase {
     PHASE_STORAGE = 0,
+    PHASE_MENU,
     PHASE_SETTING,
     PHASE_RESET,
+    PHASE_MESSAGE,
 };
 
 typedef struct st_display_info {
@@ -43,6 +48,7 @@ extern display_info_t   display_info;
 
 void display_init(void);
 void display_task(void);
+void display_busy_task(void);
 
 void display_reset_i2c_display(void);
 
@@ -62,13 +68,17 @@ void text_shift_init(text_shift_t *text);
 void text_shift_set(text_shift_t *text, const char *n_str, size_t n_len);
 void text_shift_task(text_shift_t *text);
 
-void display_config_make_path(int d88_drv, const char *file_name, simple_list_t *tree);
-void display_config_set_path(int d88_drv, const char *file_path, uint8_t side_number);
-void display_config_clear_path(int d88_drv);
-void display_config_set_side_number(int d88_drv, uint8_t side_number);
+void display_config_make_path(int img_drv, const char *file_name, simple_list_t *tree);
+void display_config_set_path(int img_drv, const char *file_path, uint8_t side_number);
+void display_config_clear_path(int img_drv);
+void display_config_set_side_number(int img_drv, uint8_t side_number);
 
 void display_led_state(int state);
+//void display_led_state_immediately(int state);
+void display_led_force(uint8_t data, uint8_t mask);
 void display_buzzer(void);
+
+void display_progress(void);
 
 void display_lcd_change_phase(void);
 
@@ -84,14 +94,16 @@ void lcd_locate_string(int x, int y, const char *s);
 void lcd_locate_substring(int x, int y, const char *s, size_t len);
 void lcd_digit(int val);
 
-void lcd_disk_motor(int drv, int onoff);
-void lcd_disk_drv_number(int drv);
-void lcd_disk_trk_sid_sec_number(int drv, int trk, int sid, int sec);
-void lcd_disk_trk_sid_number(int drv, int trk, int sid);
-void lcd_disk_sid_sec_number(int drv, int sid, int sec);
-void lcd_disk_sid_number(int drv, int sid);
-void lcd_disk_sec_number(int drv, int sec);
-
-void lcd_d88_status(int drv, int tracks_per_side, int sides_per_disk, bool valid, bool protect);
+/// @brief 
+/// @param s : string
+/// @param len : string length
+/// @param size : padding size of string
+static inline void lcd_padding(char *s, size_t len, size_t size)
+{
+    if (size > len) {
+        memset(&s[len], 0x20, size - len);
+    }
+    s[size]=0;
+}
 
 #endif /* DISPLAY_H */

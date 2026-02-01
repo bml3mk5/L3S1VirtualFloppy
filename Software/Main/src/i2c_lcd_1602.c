@@ -16,6 +16,7 @@
 #include <hardware/dma.h>
 #include <pico/binary_info.h>
 #include "i2c_master.h"
+#include "main.h"
 
 /* drive a 16x2 LCD panel */
 
@@ -69,6 +70,19 @@ static const uint32_t update_interval_ms = 100; // 10fps
 // display off time
 static const uint32_t dispoff_interval_ms = (1 * 60 * 1000);
 #endif
+
+//--------------------------------------------------------------------+
+
+static const uint8_t cg_fonts[8][8] = {
+    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },
+    { 0x00, 0x04, 0x06, 0x1f, 0x06, 0x04, 0x00, 0x00 },
+    { 0x00, 0x01, 0x02, 0x14, 0x08, 0x00, 0x00, 0x00 },
+    { 0x00, 0x11, 0x0a, 0x04, 0x0a, 0x11, 0x00, 0x00 },
+    { 0x00, 0x04, 0x06, 0x07, 0x06, 0x04, 0x00, 0x00 },
+    { 0x00, 0x0e, 0x1f, 0x1f, 0x1f, 0x0e, 0x00, 0x00 },
+    { 0x00, 0x1f, 0x1f, 0x1f, 0x1f, 0x1f, 0x00, 0x00 },
+    { 0x00, 0x1b, 0x1b, 0x1b, 0x1b, 0x1b, 0x00, 0x00 },
+};
 
 //--------------------------------------------------------------------+
 
@@ -236,6 +250,17 @@ void i2c_lcd_1602_init_screen(i2c_lcd_1602_t *obj)
     sleep_ms(2);
     i2c_lcd_1602_send_byte_blocking(slave, LCD_COMMAND, LCD_ENTRYMODESET | LCD_ENTRYRIGHT);
     sleep_ms(1);
+
+    // send cg fonts
+    for(int i=0; i<8; i++) {
+        for(int c=0; c<8; c++) {
+            i2c_lcd_1602_send_byte_blocking(slave, LCD_COMMAND, LCD_SETCGRAMADDR | (i << 3) | c);
+            sleep_us(50);
+            i2c_lcd_1602_send_byte_blocking(slave, LCD_CHARACTER, cg_fonts[i][c]);
+            sleep_us(50);
+        }
+    }
+    i2c_lcd_1602_send_byte_blocking(slave, LCD_COMMAND, LCD_SETDDRAMADDR);
 }
 
 static void display_on(i2c_lcd_1602_t *obj)
@@ -326,15 +351,15 @@ void i2c_lcd_1602_request_update(i2c_lcd_1602_t *obj)
 
 void i2c_lcd_1602_display_onoff(i2c_lcd_1602_t *obj, bool on)
 {
-    uint32_t curr_ms = to_ms_since_boot(get_absolute_time());
+//    uint32_t curr_ms = to_ms_since_boot(get_absolute_time());
     if (on) {
         if (obj->dispoff_ms == 0) {
             // display on
             display_on(obj);
         }
-        obj->dispoff_ms = curr_ms + dispoff_interval_ms;
+        obj->dispoff_ms = g_c0_current_time_ms + dispoff_interval_ms;
     } else {
-        if (obj->dispoff_ms != 0 && obj->dispoff_ms < curr_ms) {
+        if (obj->dispoff_ms != 0 && obj->dispoff_ms < g_c0_current_time_ms) {
             // display off
             display_off(obj);
             obj->dispoff_ms = 0;
@@ -345,8 +370,8 @@ void i2c_lcd_1602_display_onoff(i2c_lcd_1602_t *obj, bool on)
 void i2c_lcd_1602_task(i2c_lcd_1602_t *obj)
 {
 #if (I2C_LCD_1602_DOUBLE_BUFFERING == 1)
-    uint32_t curr_ms = to_ms_since_boot(get_absolute_time());
-    if (curr_ms >= obj->update_ms + update_interval_ms) {
+//    uint32_t curr_ms = to_ms_since_boot(get_absolute_time());
+    if (g_c0_current_time_ms >= obj->update_ms + update_interval_ms) {
         obj->update_ms += update_interval_ms;
         update_screen(obj);
     }

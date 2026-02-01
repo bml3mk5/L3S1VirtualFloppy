@@ -9,6 +9,7 @@
  */
 
 #include "disk_ctl.h"
+#include <pico.h>
 
 //------------- Elm Chan FatFS -------------//
 FATFS fatfs[CFG_TUH_DEVICE_MAX]; // for simplicity only support 1 LUN per device
@@ -34,7 +35,7 @@ static bool disk_io_complete(uint8_t dev_addr, tuh_msc_complete_data_t const * c
     return true;
 }
 
-DSTATUS disk_status (
+DSTATUS __not_in_flash_func(disk_status) (
 	BYTE pdrv		/* Physical drive nmuber to identify the drive */
 )
 {
@@ -50,7 +51,7 @@ DSTATUS disk_initialize (
     return 0; // nothing to do
 }
 
-DRESULT disk_read (
+DRESULT __not_in_flash_func(disk_read) (
 	BYTE pdrv,		/* Physical drive nmuber to identify the drive */
 	BYTE *buff,		/* Data buffer to store read data */
 	LBA_t sector,	/* Start sector in LBA */
@@ -69,7 +70,7 @@ DRESULT disk_read (
 
 #if FF_FS_READONLY == 0
 
-DRESULT disk_write (
+DRESULT __not_in_flash_func(disk_write) (
 	BYTE pdrv,			/* Physical drive nmuber to identify the drive */
 	const BYTE *buff,	/* Data to be written */
 	LBA_t sector,		/* Start sector in LBA */
@@ -88,7 +89,7 @@ DRESULT disk_write (
 
 #endif
 
-DRESULT disk_ioctl (
+DRESULT __not_in_flash_func(disk_ioctl) (
 	BYTE pdrv,		/* Physical drive nmuber (0..) */
 	BYTE cmd,		/* Control code */
 	void *buff		/* Buffer to send/receive control data */

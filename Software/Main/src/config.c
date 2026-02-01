@@ -373,11 +373,11 @@ static void write_digit(const char *key, int value)
 //#define USE_CONFIG_FLASH_OFFSET 1
 
 #ifdef USE_CONFIG_FLASH_OFFSET
-#define CONFIG_FLASH_OFFSET 0x40000
+#define CONFIG_FLASH_OFFSET 0x20000
 #endif
 
 typedef union un_config_flash {
-    uint8_t b[FLASH_PAGE_SIZE];
+    uint8_t b[FLASH_SECTOR_SIZE];
     struct {
         char identifier[8];
         uint32_t version;
@@ -392,6 +392,7 @@ typedef union un_config_flash {
 
 #ifndef USE_CONFIG_FLASH_OFFSET
 static uint8_t __in_flash("config_flash") config_flash[FLASH_SECTOR_SIZE] __aligned(FLASH_SECTOR_SIZE);
+//static uint8_t __attribute__((section(".binary_info.config_flash"))) config_flash[FLASH_SECTOR_SIZE] __aligned(FLASH_SECTOR_SIZE);
 #else
 static uint8_t *config_flash = (uint8_t *)(XIP_BASE + CONFIG_FLASH_OFFSET);
 #endif
@@ -411,28 +412,39 @@ static void config_flash_load()
     }
 }
 
-void config_flash_save()
+bool config_flash_save()
 {
-    config_flash_t data;
-    memset(&data, 0, sizeof(data));
-    memcpy(data.identifier, CONFIG_FLASH_IDENT, sizeof(data.identifier));
-    data.version = CONFIG_FLASH_VERSION;
-    data.revision = CONFIG_FLASH_REVISION;
-    data.disk_type = g_config.disk_type;
-    data.seek_track = g_config.seek_track;
-    data.search_sector = g_config.search_sector;
-    data.data_request = g_config.data_request;
-    data.i2c_ssd1306_type = g_config.i2c_ssd1306_type;
+    config_flash_t *data = (config_flash_t *)malloc(sizeof(config_flash_t));
+    if (!data) {
+        return false;
+    }
 
-   uint32_t offset = (uint32_t)(uint32_t *)config_flash - XIP_BASE;
+    memset(data, 0, sizeof(config_flash_t));
+    memcpy(data->identifier, CONFIG_FLASH_IDENT, sizeof(data->identifier));
+    data->version = CONFIG_FLASH_VERSION;
+    data->revision = CONFIG_FLASH_REVISION;
+    data->disk_type = g_config.disk_type;
+    data->seek_track = g_config.seek_track;
+    data->search_sector = g_config.search_sector;
+    data->data_request = g_config.data_request;
+    data->i2c_ssd1306_type = g_config.i2c_ssd1306_type;
 
-   // disable interrupt
-   uint32_t save = save_and_disable_interrupts();
-   // program in flash
-   flash_range_erase(offset, FLASH_SECTOR_SIZE);
-   flash_range_program(offset, data.b, FLASH_PAGE_SIZE);
-   // enable interrupt
-   restore_interrupts(save);
+    uint32_t offset = (uint32_t)(uint32_t *)config_flash - XIP_BASE;
+
+    printf("Save Flash: base:%x offs:%x\n", XIP_BASE, offset);
+
+    // disable interrupt
+    uint32_t save = save_and_disable_interrupts();
+    // program in flash
+    flash_range_erase(offset, FLASH_SECTOR_SIZE);
+    flash_range_program(offset, data->b, FLASH_PAGE_SIZE);
+    // enable interrupt
+    restore_interrupts(save);
+
+    printf("Done.\n");
+
+    free(data);
+    return true;
 }
 
 // ======================================================================

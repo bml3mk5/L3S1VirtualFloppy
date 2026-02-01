@@ -16,7 +16,7 @@
 #else
 #define APPLICATION "L3VirtualFloppy"
 #endif
-#define VERSION "0.2.01"
+#define VERSION "0.2.2"
 
 #define MAX_DRIVES 2
 
@@ -47,5 +47,7 @@
 //#define debug_puts(...) puts(__VA_ARGS__)
 #define debug_printf(...)
 #define debug_puts(...)
+
+#define BIT_ONOFF(var, exp, bit) var = ((exp) ? (var | (bit)) : (var & ~(bit)))
 
 #endif /* COMMON_H */

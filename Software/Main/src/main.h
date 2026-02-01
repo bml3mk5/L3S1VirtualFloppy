@@ -14,7 +14,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+extern uint32_t g_c0_current_time_ms;
+#ifdef USE_CORE1_CURRENT_TIME
+extern uint32_t g_c1_current_time_ms;
+#endif
+
 void main_loop_contents_in_shell_cmd(void);
+void main_loop_contents_in_busy_task(void);
 
 enum en_halt_signals {
     HALT_SIGNAL_POR = 0x01,

@@ -12,9 +12,6 @@
 #ifndef DISPLAY_BTN_H
 #define DISPLAY_BTN_H
 
-#include <stdint.h>
-#include <stdbool.h>
-
 void display_btn_init(void);
 void display_btn_task(void);
 

@@ -34,6 +34,7 @@ extern msc_app_storage_unmounted_t msc_app_storage_unmounted_cb;
 
 bool msc_app_make_list_in_directory(const char *path, uint8_t except_attr, simple_list_t *list);
 int msc_app_change_directory(simple_list_data_t *newdir, simple_list_t *tree, simple_list_t *list);
+int msc_app_reload_directory(simple_list_t *tree, simple_list_t *list);
 int msc_app_trace_path(const char *file_path, simple_list_t *tree, simple_list_t *list);
 int msc_app_change_directory_from_tree(simple_list_t *tree, simple_list_t *list);
 size_t msc_app_make_dir_path_from_tree(const simple_list_t *tree, char *path, size_t size);

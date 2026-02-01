@@ -18,6 +18,7 @@
 #include "i2c_master.h"
 #include "l3font.h"
 #include "common.h"
+#include "main.h"
 
 /* drive a 128x32 OLED panel */
 // 0 : Horizontal addressing mode (not supported)
@@ -614,15 +615,15 @@ void i2c_ssd1306_request_update(i2c_ssd1306_t *obj)
 
 void i2c_ssd1306_display_onoff(i2c_ssd1306_t *obj, bool on)
 {
-    uint32_t curr_ms = to_ms_since_boot(get_absolute_time());
+//    uint32_t curr_ms = to_ms_since_boot(get_absolute_time());
     if (on) {
         if (obj->dispoff_ms == 0) {
             // display on
             display_on(obj);
         }
-        obj->dispoff_ms = curr_ms + dispoff_interval_ms;
+        obj->dispoff_ms = g_c0_current_time_ms + dispoff_interval_ms;
     } else {
-        if (obj->dispoff_ms != 0 && obj->dispoff_ms < curr_ms) {
+        if (obj->dispoff_ms != 0 && obj->dispoff_ms < g_c0_current_time_ms) {
             // display off
             display_off(obj);
             obj->dispoff_ms = 0;
@@ -633,8 +634,8 @@ void i2c_ssd1306_display_onoff(i2c_ssd1306_t *obj, bool on)
 void i2c_ssd1306_task(i2c_ssd1306_t *obj)
 {
 #if (I2C_SSD1306_DOUBLE_BUFFERING == 1)
-    uint32_t curr_ms = to_ms_since_boot(get_absolute_time());
-    if (curr_ms >= obj->update_ms + update_interval_ms) {
+//   uint32_t curr_ms = to_ms_since_boot(get_absolute_time());
+    if (g_c0_current_time_ms >= obj->update_ms + update_interval_ms) {
         obj->update_ms += update_interval_ms;
         update_screen(obj);
     }

@@ -10,9 +10,14 @@
  */
 
 #include "display_btn.h"
+#include <stdint.h>
+#include <stdbool.h>
+#include "main.h"
 #include "display.h"
 #include "display_storage.h"
+#include "display_menu.h"
 #include "display_setting.h"
+#include "display_message.h"
 #include "i2c_led_btn.h"
 
 #define BTN_LEFT 0
@@ -54,11 +59,16 @@ void display_btn_init(void)
 static void display_btn_press_left(void)
 {
     switch(display_info.phase) {
+    case PHASE_MENU:
+        display_menu_move(-1);
+        break;
     case PHASE_SETTING:
         display_setting_move(-1);
         break;
-    default:
+    case PHASE_STORAGE:
         display_filelist_move(-1);
+        break;
+    default:
         break;
     }
 }
@@ -66,11 +76,16 @@ static void display_btn_press_left(void)
 static void display_btn_press_right(void)
 {
     switch(display_info.phase) {
+    case PHASE_MENU:
+        display_menu_move(1);
+        break;
     case PHASE_SETTING:
         display_setting_move(1);
         break;
-    default:
+    case PHASE_STORAGE:
         display_filelist_move(1);
+        break;
+    default:
         break;
     }
 }
@@ -78,10 +93,10 @@ static void display_btn_press_right(void)
 static void display_btn_press_confirm_left(void)
 {
     switch(display_info.phase) {
-    case PHASE_SETTING:
+    case PHASE_STORAGE:
+        display_filelist_confirm_move(-1);
         break;
     default:
-        display_filelist_comfirm_move(-1);
         break;
     }
 }
@@ -89,10 +104,10 @@ static void display_btn_press_confirm_left(void)
 static void display_btn_press_confirm_right(void)
 {
     switch(display_info.phase) {
-    case PHASE_SETTING:
+    case PHASE_STORAGE:
+        display_filelist_confirm_move(1);
         break;
     default:
-        display_filelist_comfirm_move(1);
         break;
     }
 }
@@ -100,11 +115,19 @@ static void display_btn_press_confirm_right(void)
 static void display_btn_press_confirm_short(void)
 {
     switch(display_info.phase) {
+    case PHASE_MENU:
+        display_menu_confirm();
+        break;
     case PHASE_SETTING:
         display_setting_confirm();
         break;
+    case PHASE_STORAGE:
+        display_filelist_confirm();
+        break;
+    case PHASE_MESSAGE:
+        display_message_confirm();
+        break;
     default:
-        display_filelist_comfirm();
         break;
     }
 }
@@ -112,17 +135,22 @@ static void display_btn_press_confirm_short(void)
 static void display_btn_press_confirm_long(void)
 {
     switch(display_info.phase) {
+    case PHASE_MENU:
+        display_menu_confirm_long();
+        break;
     case PHASE_SETTING:
-        display_setting_exit();
+        display_setting_confirm_long();
+        break;
+    case PHASE_STORAGE:
+        display_filelist_confirm_long();
         break;
     default:
-        display_setting_change_phase();
         break;
     }
 }
 
 /// @brief Check status of I2C Button and process pressing a button
-void __no_inline_not_in_flash_func(display_btn_task)(void)
+void __not_in_flash_func(display_btn_task)(void)
 {
 #if (I2C_BUTTON_DOUBLE_BUFFERING == 1)
     if (!i2c_led_btn_btn_arrived(&i2c_led_btn)) {
@@ -144,8 +172,7 @@ void __no_inline_not_in_flash_func(display_btn_task)(void)
     }
 
     // Blink every interval ms
-    uint32_t curr_ms = to_ms_since_boot(get_absolute_time());
-    if (curr_ms - start_ms < interval_ms) {
+    if (g_c0_current_time_ms - start_ms < interval_ms) {
         return;
     }
     start_ms += interval_ms;

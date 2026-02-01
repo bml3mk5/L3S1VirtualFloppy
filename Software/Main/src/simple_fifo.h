@@ -26,12 +26,30 @@ typedef struct {
 void fifo_init(simple_fifo_t *f, void *buffer, uint16_t size_count, uint16_t unit_size);
 void fifo_term(simple_fifo_t *f);
 void fifo_clear(simple_fifo_t *f);
-void fifo_push8(simple_fifo_t *f, uint8_t data);
-void fifo_push16(simple_fifo_t *f, uint16_t data);
+static inline void fifo_push8(simple_fifo_t *f, uint8_t data)
+{
+    ((uint8_t *)f->buf)[f->wpos] = data;
+    f->wpos = ((f->wpos + 1) & (f->size - 1));
+}
+static inline void fifo_push16(simple_fifo_t *f, uint16_t data)
+{
+    ((uint16_t *)f->buf)[f->wpos] = data;
+    f->wpos = ((f->wpos + 1) & (f->size - 1));
+}
 void fifo_push32(simple_fifo_t *f, uint32_t data);
 void fifo_push_data(simple_fifo_t *f, void *data);
-uint8_t fifo_pop8(simple_fifo_t *f);
-uint16_t fifo_pop16(simple_fifo_t *f);
+static inline uint8_t fifo_pop8(simple_fifo_t *f)
+{
+    uint8_t data = ((uint8_t *)f->buf)[f->rpos];
+    f->rpos = ((f->rpos + 1) & (f->size - 1));
+    return data;
+}
+static inline uint16_t fifo_pop16(simple_fifo_t *f)
+{
+    uint16_t data = ((uint16_t *)f->buf)[f->rpos];
+    f->rpos = ((f->rpos + 1) & (f->size - 1));
+    return data;
+}
 uint32_t fifo_pop32(simple_fifo_t *f);
 void fifo_pop_data(simple_fifo_t *f, void *data);
 uint8_t fifo_peek8(simple_fifo_t *f);
@@ -42,16 +60,33 @@ uint8_t fifo_latest8(simple_fifo_t *f);
 uint16_t fifo_latest16(simple_fifo_t *f);
 uint32_t fifo_latest32(simple_fifo_t *f);
 void *fifo_latest_data(simple_fifo_t *f);
-bool fifo_is_empty(simple_fifo_t *f);
-bool fifo_is_not_empty(simple_fifo_t *f);
-bool fifo_is_full(simple_fifo_t *f);
-bool fifo_is_not_full(simple_fifo_t *f);
+static inline bool fifo_is_empty(simple_fifo_t *f)
+{
+    return (f->wpos == f->rpos);
+}
+static inline bool fifo_is_not_empty(simple_fifo_t *f)
+{
+    return (f->wpos != f->rpos);
+}
+static inline bool fifo_is_full(simple_fifo_t *f)
+{
+    return (((f->wpos + 1) & (f->size - 1)) == f->rpos);
+}
+static inline bool fifo_is_not_full(simple_fifo_t *f)
+{
+    return (((f->wpos + 1) & (f->size - 1)) != f->rpos);
+}
 void fifo_inc_wpos(simple_fifo_t *f);
 void fifo_inc_rpos(simple_fifo_t *f);
 void fifo_add_wpos(simple_fifo_t *f, uint16_t cnt);
 void fifo_add_rpos(simple_fifo_t *f, uint16_t cnt);
-int fifo_count(simple_fifo_t *f);
-int fifo_remain(simple_fifo_t *f);
-
+static inline int fifo_count(simple_fifo_t *f)
+{
+    return (int)((f->wpos + f->size - f->rpos) & (f->size - 1));
+}
+static inline int fifo_remain(simple_fifo_t *f)
+{
+    return (int)((f->rpos + f->size - f->wpos - 1) & (f->size - 1));
+}
 
 #endif /* SIMPLE_FIFO_H */

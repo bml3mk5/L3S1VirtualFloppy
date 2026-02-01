@@ -25,6 +25,7 @@
 #include "pio_ctrls.h"
 #include "config.h"
 #include "display_setting.h"
+#include "display_reset.h"
 #include "shell_cmd_fdc.h"
 
 #ifndef OUT_DEBUG
@@ -116,15 +117,15 @@ void fdc_common_reset()
 
     switch(dev->disk_type) {
     case DISK_TYPE_3INCH:
-        disk_drive_change_type(0);
+        disk_drive_change_type(DISK_DRIVE_TYPE_2D);
         fdc_3inch_reset();
         break;
     case DISK_TYPE_8INCH:
-        disk_drive_change_type(1);
+        disk_drive_change_type(DISK_DRIVE_TYPE_2HD);
         fdc_8inch_reset();
         break;
     default:
-        disk_drive_change_type(0);
+        disk_drive_change_type(DISK_DRIVE_TYPE_2D);
         if (dev->disk_type == old_disk_type) {
             fdc_5inch_unitsel_reset();
         } else {

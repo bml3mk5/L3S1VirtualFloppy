@@ -20,6 +20,7 @@
 #include "msg_bridge.h"
 #include "pio_ctrls.h"
 #include "display.h"
+#include "display_disk.h"
 #include "config.h"
 
 #define HAS_HD6843 1

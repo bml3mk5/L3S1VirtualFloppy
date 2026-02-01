@@ -12,15 +12,13 @@
 #ifndef DISPLAY_SETTING_H
 #define DISPLAY_SETTING_H
 
+extern const char *setting_list_disk_type[];
+
 void display_setting_init(void);
 void display_setting_change_phase(void);
 void display_setting_move(int dir);
-void display_setting_exit(void);
 void display_setting_confirm(void);
+void display_setting_confirm_long(void);
 void display_setting_task(void);
-
-void display_reset_init(void);
-void display_reset_change_phase(void);
-void display_reset_task(void);
 
 #endif /* DISPLAY_SETTING_H */

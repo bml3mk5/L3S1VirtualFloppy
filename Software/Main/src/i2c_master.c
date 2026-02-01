@@ -477,7 +477,7 @@ bool i2c_master_recv(i2c_master_t *obj)
 /// @param state : send or receive 
 /// @param pos : data start position
 /// @param len : data length
-void __no_inline_not_in_flash_func(i2c_master_request_transfer)(i2c_master_t *obj, i2c_slave_t *slave, enum en_transqueue_state state, uint16_t pos, size_t len)
+void __not_in_flash_func(i2c_master_request_transfer)(i2c_master_t *obj, i2c_slave_t *slave, enum en_transqueue_state state, uint16_t pos, size_t len)
 {
     transqueue_t *curr = &obj->trans.current;
 
@@ -522,7 +522,7 @@ static void i2c_master_set_address(i2c_master_t *obj, int addr)
 
 /// @brief Start transfer
 /// @param obj : instance
-void __no_inline_not_in_flash_func(i2c_master_start_transfer)(i2c_master_t *obj)
+void __not_in_flash_func(i2c_master_start_transfer)(i2c_master_t *obj)
 {
     i2c_hw_t *hw = i2c_get_hw(obj->i2c);
     transqueue_t *curr = &obj->trans.current;
@@ -747,7 +747,7 @@ int i2c_master_wait_tx_buffer_is_not_full(i2c_master_t *obj, size_t len, uint32_
 /// @param state : send 
 /// @param ctrl  : control code
 /// @param data  : any data
-void __no_inline_not_in_flash_func(i2c_master_send_byte)(i2c_slave_t *slave, enum en_transqueue_state state, uint8_t ctrl, uint8_t data)
+void __not_in_flash_func(i2c_master_send_byte)(i2c_slave_t *slave, enum en_transqueue_state state, uint8_t ctrl, uint8_t data)
 {
     if (!slave->baud) return;
 
@@ -886,7 +886,7 @@ void i2c_master_send_array(i2c_slave_t *slave, enum en_transqueue_state state, c
 /// @param slave : slave instance
 /// @param state : receive
 /// @param ctrl  : control code
-void __no_inline_not_in_flash_func(i2c_master_recv_request_byte)(i2c_slave_t *slave, enum en_transqueue_state state, uint8_t ctrl)
+void __not_in_flash_func(i2c_master_recv_request_byte)(i2c_slave_t *slave, enum en_transqueue_state state, uint8_t ctrl)
 {
     if (!slave->baud) return;
 
@@ -905,7 +905,7 @@ void __no_inline_not_in_flash_func(i2c_master_recv_request_byte)(i2c_slave_t *sl
 /// @brief data is whether arrived or not
 /// @param slave : slave instance
 /// @return true if data arrived and stored in rx buffer
-bool __no_inline_not_in_flash_func(i2c_master_recv_data_arrived)(i2c_slave_t *slave)
+bool __not_in_flash_func(i2c_master_recv_data_arrived)(i2c_slave_t *slave)
 {
     i2c_master_t *obj = slave->master;
 //#if (I2C_MASTER_RX_METHOD == 2)
@@ -921,7 +921,7 @@ bool __no_inline_not_in_flash_func(i2c_master_recv_data_arrived)(i2c_slave_t *sl
 /// @brief Get a data from rx buffer
 /// @param slave : slave instance
 /// @return a data if rx buffer is not empty
-uint16_t __no_inline_not_in_flash_func(i2c_master_recv_byte)(i2c_slave_t *slave)
+uint16_t __not_in_flash_func(i2c_master_recv_byte)(i2c_slave_t *slave)
 {
     if (!slave->baud) return 0;
 

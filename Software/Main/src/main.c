@@ -37,6 +37,10 @@
 // MACRO CONSTANT TYPEDEF PROTYPES
 //--------------------------------------------------------------------+
 
+uint32_t g_c0_current_time_ms;
+#ifdef USE_CORE1_CURRENT_TIME
+uint32_t MY_CORE1_GROUP(g_c1_current_time_ms);
+#endif
 #define HALT_SIGNAL_PIN 22
 
 static void halt_signal_init(void);
@@ -53,6 +57,7 @@ static void core1_main(void);
 
 //--------------------------------------------------------------------
 
+static void led_blinking_init(void);
 static void led_blinking_task(void);
 
 //--------------------------------------------------------------------
@@ -61,6 +66,7 @@ static void __no_inline_not_in_flash_func(main_loop)(void)
 {
     while (1) {
         // tinyusb host task
+        g_c0_current_time_ms = to_ms_since_boot(get_absolute_time());
         tuh_task();
 //        msc_app_task();
         shell_cmd_task();
@@ -74,11 +80,23 @@ static void __no_inline_not_in_flash_func(main_loop)(void)
 
 void main_loop_contents_in_shell_cmd(void)
 {
+    g_c0_current_time_ms = to_ms_since_boot(get_absolute_time());
     tuh_task();
 //    msc_app_task();
     msg_task();
     disk_d88_task();
     display_task();
+    fdc_common_task();
+    led_blinking_task();
+}
+
+void main_loop_contents_in_busy_task(void)
+{
+    g_c0_current_time_ms = to_ms_since_boot(get_absolute_time());
+    tuh_task();
+    msg_task();
+    disk_d88_task();
+    display_busy_task();
     fdc_common_task();
     led_blinking_task();
 }
@@ -134,6 +152,9 @@ int main(void)
     fdc_common_init();
     // init host stack on configured roothub port
     tuh_init(BOARD_TUH_RHPORT);
+    led_blinking_init();
+
+    g_c0_current_time_ms = 0;
 
     printf("%s Ver.%s\n", APPLICATION, VERSION);
 
@@ -148,6 +169,9 @@ int main(void)
 static void MY_CORE1_FUNC(core1_main_loop)(void)
 {
     while (1) {
+#ifdef USE_CORE1_CURRENT_TIME
+        g_c1_current_time_ms = to_ms_since_boot(get_absolute_time());
+#endif
         core1_msg_task();
     }
 }
@@ -166,6 +190,9 @@ void core1_main(void)
         printf(" %02d:%08x", i, core1_vector_table[i]);
         if ((i & 3) == 3) printf("\n");
     }
+#endif
+#ifdef USE_CORE1_CURRENT_TIME
+    g_c1_current_time_ms = 0;
 #endif
 
     multicore_fifo_push_blocking(MSG_TYPE_INITIALIZE_DONE);
@@ -251,17 +278,35 @@ bool some_signals_fdc_is_enable(void)
 //--------------------------------------------------------------------+
 // Blinking Task
 //--------------------------------------------------------------------+
+static alarm_id_t led_init_id;
+static uint8_t led_state;
+static uint32_t start_ms;
+
+static int64_t led_blinking_init_cb(alarm_id_t id, void *user_data)
+{
+    board_led_write(0);
+    display_led_state(0);
+    return 0;
+}
+
+void led_blinking_init(void)
+{
+    led_state = 0;
+    start_ms = 0;
+    board_led_write(1);
+    display_led_state(3);
+    led_init_id = event_register_event(500000, led_blinking_init_cb, 0);
+}
+
 void __no_inline_not_in_flash_func(led_blinking_task)(void)
 {
     const uint32_t interval_ms[2] = { 950, 50 };
-    static uint32_t start_ms = 0;
-    static uint8_t led_state = 0;
 
     // Blink every interval ms
-    if ( board_millis() - start_ms < interval_ms[led_state & 1]) return; // not enough time
-    start_ms += interval_ms[led_state & 1];
+    if ( g_c0_current_time_ms - start_ms < interval_ms[led_state]) return; // not enough time
+    start_ms += interval_ms[led_state];
 
-    led_state = (led_state + 1) & 3; // toggle
-    board_led_write(led_state & 1);
-    display_led_state(led_state);
+    led_state = 1 - led_state; // toggle
+    board_led_write(led_state);
+//    display_led_state(led_state);
 }

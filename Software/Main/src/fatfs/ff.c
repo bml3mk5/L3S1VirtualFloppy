@@ -22,7 +22,7 @@
 #include <string.h>
 #include "ff.h"			/* Declarations of FatFs API */
 #include "diskio.h"		/* Declarations of device I/O functions */
-
+#include <pico.h>
 
 /*--------------------------------------------------------------------------
 
@@ -1052,7 +1052,7 @@ static void clear_share (	/* Clear all lock entries of the volume */
 /* Move/Flush disk access window in the filesystem object                */
 /*-----------------------------------------------------------------------*/
 #if !FF_FS_READONLY
-static FRESULT sync_window (	/* Returns FR_OK or FR_DISK_ERR */
+static FRESULT __not_in_flash_func(sync_window) (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs			/* Filesystem object */
 )
 {
@@ -1074,7 +1074,7 @@ static FRESULT sync_window (	/* Returns FR_OK or FR_DISK_ERR */
 #endif
 
 
-static FRESULT move_window (	/* Returns FR_OK or FR_DISK_ERR */
+static FRESULT __not_in_flash_func(move_window) (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs,		/* Filesystem object */
 	LBA_t sect		/* Sector LBA to make appearance in the fs->win[] */
 )
@@ -1105,7 +1105,7 @@ static FRESULT move_window (	/* Returns FR_OK or FR_DISK_ERR */
 /* Synchronize filesystem and data on the storage                        */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT sync_fs (	/* Returns FR_OK or FR_DISK_ERR */
+static FRESULT __not_in_flash_func(sync_fs) (	/* Returns FR_OK or FR_DISK_ERR */
 	FATFS* fs		/* Filesystem object */
 )
 {
@@ -1141,7 +1141,7 @@ static FRESULT sync_fs (	/* Returns FR_OK or FR_DISK_ERR */
 /* Get physical sector number from cluster number                        */
 /*-----------------------------------------------------------------------*/
 
-static LBA_t clst2sect (	/* !=0:Sector number, 0:Failed (invalid cluster#) */
+static LBA_t __not_in_flash_func(clst2sect) (	/* !=0:Sector number, 0:Failed (invalid cluster#) */
 	FATFS* fs,		/* Filesystem object */
 	DWORD clst		/* Cluster# to be converted */
 )
@@ -1158,7 +1158,7 @@ static LBA_t clst2sect (	/* !=0:Sector number, 0:Failed (invalid cluster#) */
 /* FAT access - Read value of an FAT entry                               */
 /*-----------------------------------------------------------------------*/
 
-static DWORD get_fat (		/* 0xFFFFFFFF:Disk error, 1:Internal error, 2..0x7FFFFFFF:Cluster status */
+static DWORD __not_in_flash_func(get_fat) (		/* 0xFFFFFFFF:Disk error, 1:Internal error, 2..0x7FFFFFFF:Cluster status */
 	FFOBJID* obj,	/* Corresponding object */
 	DWORD clst		/* Cluster number to get the value */
 )
@@ -1521,7 +1521,7 @@ static FRESULT remove_chain (	/* FR_OK(0):succeeded, !=0:error */
 /* FAT handling - Stretch a chain or Create a new chain                  */
 /*-----------------------------------------------------------------------*/
 
-static DWORD create_chain (	/* 0:No free cluster, 1:Internal error, 0xFFFFFFFF:Disk error, >=2:New cluster# */
+static DWORD __not_in_flash_func(create_chain) (	/* 0:No free cluster, 1:Internal error, 0xFFFFFFFF:Disk error, >=2:New cluster# */
 	FFOBJID* obj,		/* Corresponding object */
 	DWORD clst			/* Cluster# to stretch, 0:Create a new chain */
 )
@@ -3613,7 +3613,7 @@ static FRESULT mount_volume (	/* FR_OK(0): successful, !=0: an error occurred */
 /* Check if the file/directory object is valid or not                    */
 /*-----------------------------------------------------------------------*/
 
-static FRESULT validate (	/* Returns FR_OK or FR_INVALID_OBJECT */
+static FRESULT __not_in_flash_func(validate) (	/* Returns FR_OK or FR_INVALID_OBJECT */
 	FFOBJID* obj,			/* Pointer to the FFOBJID, the 1st member in the FIL/DIR structure, to check validity */
 	FATFS** rfs				/* Pointer to pointer to the owner filesystem object to return */
 )
@@ -3914,7 +3914,7 @@ FRESULT f_open (
 /* Read File                                                             */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_read (
+FRESULT __not_in_flash_func(f_read) (
 	FIL* fp, 	/* Open file to be read */
 	void* buff,	/* Data buffer to store the read data */
 	UINT btr,	/* Number of bytes to read */
@@ -4014,7 +4014,7 @@ FRESULT f_read (
 /* Write File                                                            */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_write (
+FRESULT __not_in_flash_func(f_write) (
 	FIL* fp,			/* Open file to be written */
 	const void* buff,	/* Data to be written */
 	UINT btw,			/* Number of bytes to write */
@@ -4135,7 +4135,7 @@ FRESULT f_write (
 /* Synchronize the File                                                  */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_sync (
+FRESULT __not_in_flash_func(f_sync) (
 	FIL* fp		/* Open file to be synced */
 )
 {
@@ -4433,7 +4433,7 @@ FRESULT f_getcwd (
 /* Seek File Read/Write Pointer                                          */
 /*-----------------------------------------------------------------------*/
 
-FRESULT f_lseek (
+FRESULT __not_in_flash_func(f_lseek) (
 	FIL* fp,		/* Pointer to the file object */
 	FSIZE_t ofs		/* File pointer from top of file */
 )

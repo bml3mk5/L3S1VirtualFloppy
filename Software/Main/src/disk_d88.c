@@ -17,6 +17,7 @@
 #include "common.h"
 #include "pio_ctrls.h"
 #include "display.h"
+#include "display_disk.h"
 #include "fdc_common.h"
 #include "utils.h"
 
@@ -209,7 +210,7 @@ void __not_in_flash_func(disk_d88_disp_lcd_on)(DISK_D88 *disk)
 {
     bool wp = disk_d88_is_write_protected_on(disk);
     lcd_disk_trk_sid_sec_number(disk->drive_number, disk->curr_track_number, disk->curr_side_number, disk->curr_sector_number);
-    lcd_d88_status(disk->drive_number, disk->tracks_per_side, disk->sides_per_disk, true, wp);
+    lcd_disk_status(disk->drive_number, disk->tracks_per_side, disk->sides_per_disk, true, wp);
 }
 
 void __not_in_flash_func(disk_d88_disp_lcd)(int drv)
@@ -281,7 +282,7 @@ int disk_d88_mount_on(DISK_D88 *disk, int side_number, const char *path, int off
 error:
     disk_d88_unmount_on(disk);
 
-    lcd_d88_status(disk->drive_number, disk->tracks_per_side, disk->sides_per_disk, false, false);
+    lcd_disk_status(disk->drive_number, disk->tracks_per_side, disk->sides_per_disk, false, false);
     return FR_DISK_ERR;
 }
 
@@ -314,6 +315,139 @@ int disk_d88_unmount(int drv)
 {
     VALID_DRIVE_NUMBER(drv, FR_INVALID_DRIVE);
     return disk_d88_unmount_on(&disks[drv]);
+}
+
+/*======================================================================*/
+
+void disk_d88_append_header(FIL *fp, int disk_type)
+{
+    // create .d88 header
+    d88_hdr_t header;
+    d88_sct_t sector;
+    UINT bw = 0;
+    memset(&header, 0, sizeof(header));
+    memset(&sector, 0, sizeof(sector));
+
+    switch(disk_type) {
+    case DISK_TYPE_8INCH:
+        header.media_type = MEDIA_TYPE_2HD;
+        break;
+    default:
+        header.media_type = MEDIA_TYPE_2D;
+        break;
+    }
+
+
+    FRESULT re = f_write(fp, &header, (UINT)sizeof(header), &bw);
+    if (re != FR_OK) return;
+
+    uint8_t max_c, max_h, max_r, max_n, h_msk, intl, fil, dir_trk, fat_sid, fat_sec, sys_sta, sys_cnt, sd_trk, sd_sid;
+    switch(disk_type) {
+    case DISK_TYPE_8INCH:
+        // 2HD 77tracks 2sides 26sectors 256bytes
+        max_c = 77; max_h = 2; max_r = 26; max_n = 1; h_msk = 1; intl = 1;
+        fil = 0x40; dir_trk = 37; fat_sec = 2;
+        fat_sid = 0; fat_sec = 2; sys_sta = 1; sys_cnt = 2;
+        // single density on track0 and side0
+        sd_trk = 0; sd_sid = 0;
+        break;
+    case DISK_TYPE_3INCH:
+        // 1Sx2 40tracks 2sides 16sectors 128bytes
+        max_c = 40; max_h = 2; max_r = 16; max_n = 0; h_msk = 0; intl = 3;
+        fil = 0xe5; dir_trk = 20;
+        fat_sid = 0x80; fat_sec = 1; sys_sta = 5; sys_cnt = 20;
+        // single density on all tracks
+        sd_trk = 0x80; sd_sid = 0x80;
+        break;
+    default:
+        // 2D 40tracks 2sides 16sectors 256bytes
+        max_c = 40; max_h = 2; max_r = 16; max_n = 1; h_msk = 1; intl = 6;
+        fil = 0x40; dir_trk = 20;
+        fat_sid = 0; fat_sec = 2; sys_sta = 1; sys_cnt = 3;
+#ifdef _MBS1
+        sd_trk = 0xff; sd_sid = 0xff;
+#else
+        // single density on track0 and side0
+        sd_trk = 0; sd_sid = 0;
+#endif
+        break;
+    }
+
+    // calc interleave
+    uint8_t rarr[28];
+    uint8_t r = 0;
+    for(uint8_t i=0; i<28; i++) {
+        rarr[i]=0;
+    }
+    for(uint8_t i=0; i<max_r; i++) {
+        rarr[r]=i + 1;
+        r += intl;
+        if (r >= max_r) {
+            r -= max_r;
+            while (rarr[r] > 0) r++;
+        }
+    }
+
+    sector.nsec = max_r;
+    int tidx = 0;
+    for(uint8_t c=0; c<max_c && tidx < D88_MAX_TRACKS; c++) {
+        sector.c = c;
+        for(uint8_t h=0; h<max_h && tidx < D88_MAX_TRACKS; h++) {
+            sector.h = (h & h_msk);
+            header.trkptr[tidx] = TO_LE32(f_tell(fp));
+            if ((c == sd_trk && h == sd_sid) || (sd_trk == 0x80 && sd_sid == 0x80)) {
+                // single density
+                sector.dens = 0x40;
+                sector.n = 0;
+                sector.size = 128;
+            } else {
+                // double density
+                sector.dens = 0;
+                sector.n = max_n;
+                sector.size = (128 << max_n);
+            }
+            for(r=0; r<max_r; r++) {
+                sector.r = rarr[r];
+                f_write(fp, &sector, (UINT)sizeof(sector), &bw);
+                if (c == dir_trk) {
+                    // FAT and directory
+                    uint16_t s = 0;
+                    if (sector.r == fat_sec && (h == fat_sid || fat_sid == 0x80)) {
+                        // FAT area
+                        // first code in FAT area
+                        f_putc((TCHAR)0, fp);
+                        s++;
+                        while(s < sys_sta) {
+                            f_putc((TCHAR)0xff, fp);
+                            s++;
+                        }
+                        // mark reserved code as system area
+                        while(s < (sys_sta + sys_cnt)) {
+                            f_putc((TCHAR)0xfe, fp);
+                            s++;
+                        }
+                    }
+                    // directory track
+                    for(uint16_t n=s; n<sector.size; n++) {
+                        f_putc((TCHAR)0xff, fp);
+                    }
+                } else {
+                    // data
+                    for(uint16_t n=0; n<sector.size; n++) {
+                        f_putc((TCHAR)fil, fp);
+                    }
+                }
+                display_progress();
+            }
+            sector.size = TO_LE16(sector.size);
+            tidx++;
+        }
+    }
+    // update header
+    header.size = TO_LE32(f_tell(fp));
+    // rewrite header to file
+    f_lseek(fp, 0);
+    f_write(fp, &header, (UINT)sizeof(header), &bw);
 }
 
 /*======================================================================*/
@@ -877,7 +1011,7 @@ bool __not_in_flash_func(disk_d88_is_track0_on)(DISK_D88 *disk)
 
 bool __not_in_flash_func(disk_d88_is_track0)(int drv)
 {
-    VALID_DRIVE_NUMBER(drv, 0);
+    VALID_DRIVE_NUMBER(drv, false);
     return disk_d88_is_track0_on(&disks[drv]);
 }
 

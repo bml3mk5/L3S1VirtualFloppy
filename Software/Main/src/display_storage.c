@@ -10,54 +10,23 @@
  */
 
 #include "display_storage.h"
-#include "common.h"
-#include "display.h"
+#include "main.h"
+#include "display_disk.h"
+#include "display_menu.h"
+//#include "display_setting.h"
 #include "event.h"
 #include "msc_app.h"
-#include "disk_drive.h"
-#include "fdc_common.h"
-#include "disk_d88.h"
-#include "main.h"
+//#include "disk_drive.h"
+//#include "fdc_common.h"
+//#include "disk_d88.h"
 #include "config.h"
-#include <ff.h>
 
-enum en_storage_flags {
-    ST_FLG_FILE_NOT_FOUND = 0x01,
-    ST_FLG_DIR_NOT_FOUND = 0x02,
-    ST_FLG_NEED_MOUNT = 0x10,
-};
-
-enum en_storage_states {
-    ST_STATE_IDLE = 0,
-    ST_STATE_UNMOUNT,
-    ST_STATE_UNMOUNT_WAIT,
-    ST_STATE_UNMOUNT_DONE,
-    ST_STATE_MOUNT,
-    ST_STATE_MOUNT_WAIT,
-    ST_STATE_MOUNT_DONE,
-    ST_STATE_MOUNTING,
-};
-
-struct st_file_info {
-    uint8_t drv;
-    uint8_t sid;        // side number for 3inch
-    uint16_t flags;
-    display_pos_t pos;
-    simple_list_t list; // file list in current directory
-    simple_list_t tree; // parent - children dir tree
-    text_shift_t shift;
-};
-
-static struct st_display_storage {
-    uint16_t state;
-//    uint16_t flags;
-    alarm_id_t id;
-    display_pos_t d88_drv;
-    struct st_file_info file_info[MAX_DRIVES];
-} storage_info;
+struct st_display_storage storage_info;
 
 static void display_storage_mounted_cb(void);
 static void display_storage_unmounted_cb(void);
+display_storage_append_header_t display_storage_append_header_cb = NULL;
+display_storage_progress_t display_storage_progress_cb = NULL;
 
 void display_storage_init(void)
 {
@@ -67,8 +36,8 @@ void display_storage_init(void)
 
     storage_info.state = ST_STATE_UNMOUNT;
 //    storage_info.flags = 0;
-    storage_info.d88_drv.c = 0;
-    storage_info.d88_drv.n = 0;
+    storage_info.curr_drv.c = 0;
+    storage_info.curr_drv.n = 0;
     for(int drv=0; drv<MAX_DRIVES; drv++) {
         struct st_file_info *file_info = &storage_info.file_info[drv];
         file_info->drv = (uint16_t)drv;
@@ -112,28 +81,55 @@ static void display_directory_change(struct st_file_info *file_info, simple_list
         file_info->flags |= ST_FLG_DIR_NOT_FOUND;
     } else {
         // changed directory
-        file_info->flags = 0;
+        file_info->flags &= ~ST_FLG_NOT_FOUND_MASK;
         file_info->pos.c = -1;
         file_info->pos.n = npos;
     }
 }
 
-//--------------------------------------------------------------------
-
 /// @brief 
-/// @param file_info : file information
-static void display_d88file_toggle_side_number(struct st_file_info *file_info)
+/// @param[in] name file name without path tree
+/// @param[in,out] tree directory tree
+/// @param[in,out] list file list in current directory 
+/// @return true if success
+bool display_storage_create_file_in_current_dir(const char *name, simple_list_t *tree, simple_list_t *list)
 {
-    if (disk_d88_is_not_ready(file_info->drv)) return;
-    uint8_t nsid = fdc_common_toggle_side_number(file_info->drv, file_info->sid);
-    if (nsid != file_info->sid) {
-        display_config_set_side_number(file_info->drv, nsid);
-        file_info->sid = nsid;
+    FIL fp;
+    char path[256];
+    size_t path_len = 0;
+    size_t name_len = strlen(name);
+
+    if (name_len == 0) {
+        return false;
     }
+
+    memset(&fp, 0, sizeof(fp));
+
+    path_len = msc_app_make_dir_path_from_tree(tree, path, sizeof(path));
+    if (path_len + name_len + 1 > sizeof(path)) {
+        return false;
+    }
+    strcat(path, "/");
+    strcat(path, name);
+
+    if ( FR_OK != f_open(&fp, path, FA_WRITE | FA_CREATE_ALWAYS) ) {
+        debug_printf("Cannot create a file: '%s'\n", path);
+        return false;
+    }
+
+    if (display_storage_append_header_cb) {
+        display_storage_append_header_cb(&fp, path, strlen(path));
+    }
+
+    f_close(&fp);
+
+    msc_app_reload_directory(tree, list);
+    return true;
 }
 
 //--------------------------------------------------------------------
 
+#if 0
 /// @brief 
 /// @param dst 
 /// @param dst_len : size of dst
@@ -142,15 +138,8 @@ static void display_d88file_toggle_side_number(struct st_file_info *file_info)
 /// @param src_len : size of src 
 static void display_lcd_strncpy(char *dst, size_t dst_len, size_t dst_fillen, const char *src, size_t src_len)
 {
-    if (dst_len > dst_fillen) {
-        memset(dst, 0x20, dst_fillen);
-        memset(&dst[dst_fillen], 0, dst_len - dst_fillen);
-    } else {
-        memset(dst, 0x20, dst_len);
-    }
-    if (src_len + 1 > dst_len) src_len = dst_len - 1;
-    memcpy(dst, src, src_len);
 }
+#endif
 
 /// @brief Make the file name to show the I2C LCD
 /// @param dst : formatted string
@@ -159,7 +148,15 @@ static void display_lcd_strncpy(char *dst, size_t dst_len, size_t dst_fillen, co
 /// @param src : a file name
 static void display_lcd_make_file_name(char *dst, size_t dst_len, size_t dst_fillen, const char *src)
 {
-    display_lcd_strncpy(dst, dst_len, dst_fillen, src, strlen(src));
+    size_t src_len = strlen(src);
+    if (dst_len > dst_fillen) {
+        memset(dst, 0x20, dst_fillen);
+        memset(&dst[dst_fillen], 0, dst_len - dst_fillen);
+    } else {
+        memset(dst, 0x20, dst_len);
+    }
+    if (src_len + 1 > dst_len) src_len = dst_len - 1;
+    memcpy(dst, src, src_len);
 }
 
 /// @brief Make the directory name to show the I2C LCD
@@ -184,14 +181,25 @@ static void display_lcd_make_dir_name(char *dst, size_t dst_len, size_t dst_fill
 /// @param file_info 
 static void display_lcd_filelist_default(struct st_file_info *file_info, const char *message)
 {
-    if (storage_info.d88_drv.c != file_info->drv) return;
+    if (storage_info.curr_drv.c != file_info->drv) return;
 
-    lcd_disk_drv_number(file_info->drv);
+    display_lcd_drive_number(file_info->drv);
     lcd_locate_substring(2, 0, file_info->shift.text, DISPLAY_LCD_FILE_SIZE);
     lcd_locate_charset(0, 1, 0x20, 16);
     if (message) {
         lcd_locate_string(0, 1, message);
     }
+}
+
+/// @brief Show the drive number on the I2C LCD
+/// @param img_drv : drive number 
+void display_lcd_drive_number(int img_drv)
+{
+    char str[4];
+    str[0] = (img_drv & 3) + '0';
+    str[1] = ':';
+    str[2] = 0;
+    lcd_locate_substring(0, 0, str, 2);
 }
 
 //--------------------------------------------------------------------
@@ -220,18 +228,15 @@ static void display_storage_unmount(void)
 /// @brief Finish unmounting the storage (USB memory)
 static void display_storage_unmount_done(void)
 {
-    char str[17];
-    size_t len;
-    len = strlen(APPLICATION);
-    display_lcd_strncpy(str, sizeof(str), 16, APPLICATION, len);
+    char str[20];
 
+    strcpy(str, APPLICATION);
+    lcd_padding(str, strlen(str), 16);
     lcd_locate_substring(0, 0, str, 16);
 
-    len = strlen(VERSION);
-    display_lcd_strncpy(str, sizeof(str), 16, VERSION, len);
-    const char *msg = " Mount USB";
-    display_lcd_strncpy(&str[len], sizeof(str) - len, 16, msg, strlen(msg));
-
+    strcpy(str, VERSION);
+    strcat(str, " Mount USB");
+    lcd_padding(str, strlen(str), 16);
     lcd_locate_substring(0, 1, str, 16);
 
     storage_info.state = ST_STATE_IDLE;
@@ -246,8 +251,8 @@ static void display_storage_mount(void)
 
     event_cancel_event(&storage_info.id);
 
-    storage_info.d88_drv.c = 0;
-    storage_info.d88_drv.n = 0;
+    storage_info.curr_drv.c = 0;
+    storage_info.curr_drv.n = 0;
 
     // make file list on root direcoty
     simple_list_clear(&storage_info.file_info[0].tree);
@@ -273,23 +278,6 @@ static void display_storage_mount(void)
     }
 }
 
-/// @brief Remount the last d88 file that was mounted previously.
-/// @return position in the directory list / -1 : not found or error
-static int display_d88file_set_path(int d88_drv, simple_list_t *tree, simple_list_t *list)
-{
-    FIL fd;
-
-    // file exists ?
-    memset(&fd, 0, sizeof(fd));
-    if (f_open(&fd, config_get_path_ptr(d88_drv), FA_READ) != FR_OK) {
-        // cannot open
-        return -1;
-    }
-    f_close(&fd);
-
-    return msc_app_trace_path(config_get_path_ptr(d88_drv), tree, list);
-}
-
 /// @brief Finish mounting the storage (USB memory)
 static void display_storage_mount_done(void)
 {
@@ -310,7 +298,7 @@ static void display_storage_mount_done(void)
             f_chdir("/");
 #endif
             file_info->sid = config_get_side_number(drv);
-            int pos = display_d88file_set_path(drv, &file_info->tree, &file_info->list);
+            int pos = display_disk_file_set_path(drv, &file_info->tree, &file_info->list);
             if (pos >= 0) {
                 file_info->pos.n = pos;
                 file_info->flags |= ST_FLG_NEED_MOUNT;
@@ -330,10 +318,10 @@ static void display_storage_mount_done(void)
 }
 
 /// @brief Change directory
-/// @param d88_drv : drive number
+/// @param img_drv : drive number
 /// @param path : path such as "/foo/bar/baz/file.txt" (slash separator)
 /// @return Position the file in the directory / -2 means file not found
-int display_storage_change_directory(int d88_drv, const char *path)
+int display_storage_change_directory(int img_drv, const char *path)
 {
 #ifndef USE_CURRENT_DIRECTORY
     if (f_chdir(path) != FR_OK) {
@@ -345,7 +333,7 @@ int display_storage_change_directory(int d88_drv, const char *path)
         // file not found
         return -2;
     }
-    struct st_file_info *file_info = &storage_info.file_info[d88_drv];
+    struct st_file_info *file_info = &storage_info.file_info[img_drv];
     file_info->pos.c = 0;
     file_info->pos.n = 0;
     int pos = msc_app_trace_path(path, &file_info->tree, &file_info->list);
@@ -355,81 +343,12 @@ int display_storage_change_directory(int d88_drv, const char *path)
 #endif
 }
 
-/// @brief Mount the d88 file and show the file info on I2C LCD
-/// @param d88_drv : drive number
-/// @param file_path : d88 file name
-bool display_d88_mount(int d88_drv, const char *file_path)
-{
-    if (f_stat(file_path, NULL) != FR_OK) {
-        // file not found
-        return false;
-    }
-    size_t file_len = strlen(file_path);
-    if (strcasecmp(&file_path[file_len - 4], ".d88") != 0) {
-        // not d88 file
-        return false;
-    }
-    struct st_file_info *file_info = &storage_info.file_info[d88_drv];
-    file_info->pos.c = 0;
-    file_info->pos.n = 0;
-    int pos = msc_app_trace_path(file_path, &file_info->tree, &file_info->list);
-    if (pos >= 0) {
-        file_info->pos.n = pos;
-        file_info->flags |= ST_FLG_NEED_MOUNT;
-    } else {
-        file_info->pos.c = pos;
-    }
-    return true;
-}
-
-/// @brief Unmount the d88 file
-/// @param d88_drv : drive number
-void display_d88_unmount(int d88_drv)
-{
-    disk_drive_unmount(d88_drv);
-    lcd_disk_drv_number(0);
-    lcd_locate_charset(2, 1, 0x20, 14);
-}
-
-/// @brief 
-/// @param  
-/// @return 
-int display_d88_get_current_drive(void)
-{
-    return storage_info.d88_drv.c;
-}
-
-/// @brief Mount the d88 file and show the file info on I2C LCD
-/// @param d88_drv : drive number
-/// @param sid : side number
-/// @param data : file information
-/// @param tree : directory tree in storage
-static bool display_d88file_mount_on(int d88_drv, uint8_t sid, const simple_list_data_t *data, simple_list_t *tree)
-{
-    if (strcasecmp(&data->name[data->len - 4], ".d88") != 0) {
-        // not d88 file
-        display_config_clear_path(d88_drv);
-        return false;
-    }
-    char path[256];
-    msc_app_make_file_path_from_tree(tree, data, path, sizeof(path));
-    if (disk_drive_mount(d88_drv, sid, path, 0)) {
-        fdc_common_set_side_number(d88_drv, sid);
-#ifndef USE_CURRENT_DIRECTORY
-        display_config_set_path(d88_drv, path, sid);
-#else
-        display_config_make_path(d88_drv, path, tree);
-#endif
-    }
-    return true;
-}
-
 /// @brief Show the file or directory in storage on I2C LCD
 /// @param file_info : file information
 /// @param data : a file or directory
-static void display_lcd_disp_file(struct st_file_info *file_info, simple_list_data_t *data)
+void display_lcd_disp_file(struct st_file_info *file_info, simple_list_data_t *data)
 {
-    int d88_drv = file_info->drv;
+//    int img_drv = file_info->drv;
     if (data) {
         // data found
         char *name = data->name;
@@ -448,7 +367,7 @@ static void display_lcd_disp_file(struct st_file_info *file_info, simple_list_da
 
     // Shift the file name on LCD, when file name is more then 16.
     if (file_info->shift.phase) {
-        file_info->shift.ms = to_ms_since_boot(get_absolute_time());
+        file_info->shift.ms = g_c0_current_time_ms;
         file_info->shift.pos_max = flen - DISPLAY_LCD_FILE_SIZE + 1;
     }
 
@@ -456,63 +375,15 @@ static void display_lcd_disp_file(struct st_file_info *file_info, simple_list_da
     display_lcd_filelist_default(file_info, NULL);
 }
 
-/// @brief 
-/// @param file_info : file information
-/// @param data : a file or directory
-static void display_d88file_mount(struct st_file_info *file_info, simple_list_data_t *data)
-{
-    int d88_drv = file_info->drv;
-
-    // d88 file ?
-    if (data && (data->attr & (AM_DIR | AM_SYS)) == 0) {
-        // try to mount the d88 file
-        display_d88file_mount_on(d88_drv, file_info->sid, data, &file_info->tree);
-    } else {
-        disk_drive_unmount(d88_drv);
-        display_config_clear_path(d88_drv);
-    }
-}
-
-/// @brief Show the file or directory in storage on I2C LCD
-/// @param file_info : file information
-/// @param data : a file or directory
-static void display_lcd_disp_file_and_d88_mount(struct st_file_info *file_info, simple_list_data_t *data)
-{
-    display_lcd_disp_file(file_info, data);
-    display_d88file_mount(file_info, data);
-}
-
-/// @brief Show the file or directory in storage on I2C LCD
-/// @param file_info : file information
-/// @param data : a file or directory
-static void display_lcd_disp_file_and_d88_info(struct st_file_info *file_info, simple_list_data_t *data)
-{
-    int d88_drv = file_info->drv;
-
-    display_lcd_disp_file(file_info, data);
-
-    if (disk_d88_is_not_ready(d88_drv) == FR_OK) {
-        // already mounted
-        disk_d88_disp_lcd(d88_drv);
-    }  else {
-        if (data && (data->attr & (AM_DIR | AM_SYS)) == 0) {
-            // try to mount the d88 file
-            display_d88file_mount_on(d88_drv, file_info->sid, data, &file_info->tree);
-        } else {
-            disk_drive_unmount(d88_drv);
-        }
-    }
-}
-
 /// @brief Processing with storage (USB memory) mounted
-static void __no_inline_not_in_flash_func(display_storage_mounting)(void)
+static void __not_in_flash_func(display_storage_mounting)(void)
 {
     struct st_file_info *file_info;
-    if (storage_info.d88_drv.c != storage_info.d88_drv.n) {
+    if (storage_info.curr_drv.c != storage_info.curr_drv.n) {
         // change drive number
-        storage_info.d88_drv.c = storage_info.d88_drv.n;
+        storage_info.curr_drv.c = storage_info.curr_drv.n;
         // current path
-        file_info = &storage_info.file_info[storage_info.d88_drv.c];
+        file_info = &storage_info.file_info[storage_info.curr_drv.c];
         int npos = msc_app_change_directory_from_tree(&file_info->tree, &file_info->list);
         if (npos > 0) {
             // list is changed
@@ -521,36 +392,38 @@ static void __no_inline_not_in_flash_func(display_storage_mounting)(void)
             file_info->pos.c = -1;
         } else {
             // changed directory
-            file_info->flags = 0;
+//            file_info->flags = 0;
+//            file_info->pos.c = 0;
             simple_list_data_t *data = simple_list_get_data_by_index(&file_info->list, file_info->pos.c);
-            display_lcd_disp_file_and_d88_info(file_info, data);
+            display_lcd_disp_file_and_disk_file_info(file_info, data);
         }
     } else {
-        file_info = &storage_info.file_info[storage_info.d88_drv.c];
+        file_info = &storage_info.file_info[storage_info.curr_drv.c];
     }
 
     if (file_info->pos.c != file_info->pos.n) {
         // change file position on current list
         file_info->pos.c = file_info->pos.n;
         simple_list_data_t *data = simple_list_get_data_by_index(&file_info->list, file_info->pos.c);
-        display_lcd_disp_file_and_d88_mount(file_info, data);
+        display_lcd_disp_file_and_disk_file_mount(file_info, data);
         file_info->flags &= ~ST_FLG_NEED_MOUNT;
     }
     text_shift_task(&file_info->shift);
 
     for(int drv=0; drv<MAX_DRIVES; drv++) {
         file_info = &storage_info.file_info[drv];
+        // when set a disk file on command line
         if (file_info->flags & ST_FLG_NEED_MOUNT) {
             file_info->pos.c = file_info->pos.n;
             simple_list_data_t *data = simple_list_get_data_by_index(&file_info->list, file_info->pos.c);
-            display_d88file_mount(file_info, data);
+            display_disk_file_mount_by_info(file_info, data);
             file_info->flags &= ~ST_FLG_NEED_MOUNT;
         }
     }
 }
 
 /// @brief Main task to display a file
-void __no_inline_not_in_flash_func(display_storage_task)(void)
+void __not_in_flash_func(display_storage_task)(void)
 {
     if (storage_info.id >= 0) {
         return;
@@ -581,48 +454,85 @@ void __no_inline_not_in_flash_func(display_storage_task)(void)
     }
 }
 
-//--------------------------------------------------------------------
-
-void display_filelist_change_phase(void)
+void display_storage_change_phase(void)
 {
     display_info.phase = PHASE_STORAGE;
     if (storage_info.state == ST_STATE_IDLE) {
         storage_info.state = ST_STATE_UNMOUNT_DONE;
     }
-    struct st_file_info *file_info = &storage_info.file_info[storage_info.d88_drv.c];
+    struct st_file_info *file_info = &storage_info.file_info[storage_info.curr_drv.c];
     // update screen 
     file_info->pos.n = file_info->pos.c;
     file_info->pos.c = -1;
 }
 
+//--------------------------------------------------------------------
+
 /// @brief Move position of selected file in the directory
 /// @param dir : direction 1 or -1
 void display_filelist_move(int dir)
 {
-    struct st_file_info *file_info = &storage_info.file_info[storage_info.d88_drv.c];
+    struct st_file_info *file_info = &storage_info.file_info[storage_info.curr_drv.c];
     file_info->pos.n = display_change_choice(dir, file_info->pos.n, file_info->list.count);
 }
 
 /// @brief Process when press the OK and move button
-void display_filelist_comfirm_move(int dir)
+void display_filelist_confirm_move(int dir)
 {
-    storage_info.d88_drv.n = display_change_choice(dir, storage_info.d88_drv.n, MAX_DRIVES);
+    storage_info.curr_drv.n = display_change_choice(dir, storage_info.curr_drv.n, MAX_DRIVES);
 }
 
 /// @brief Process when press the OK button
-void display_filelist_comfirm(void)
+void display_filelist_confirm(void)
 {
-    struct st_file_info *file_info = &storage_info.file_info[storage_info.d88_drv.c];
+    struct st_file_info *file_info = &storage_info.file_info[storage_info.curr_drv.c];
     simple_list_data_t *data = simple_list_get_data_by_index(&file_info->list, file_info->pos.c);
     if (!data) return;
 
     if (!(data->attr & AM_DIR)) {
         // file
-        display_d88file_toggle_side_number(file_info);
+        display_disk_file_toggle_side_number(file_info);
     } else {
         // directory
         display_directory_change(file_info, data);
     }
+}
+
+void display_filelist_confirm_long(void)
+{
+    display_menu_change_phase();
+}
+
+//--------------------------------------------------------------------
+
+int display_filelist_find_by_name(const char *name)
+{
+    int match = -1;
+    struct st_display_storage *si = &storage_info;
+    if (si->curr_drv.c < 0) {
+        return match;
+    }
+    struct st_file_info *fi = &si->file_info[si->curr_drv.c];
+    simple_list_data_t *data = simple_list_get_data_by_name(&fi->list, name);
+    if (data) {
+        match = data->index;
+    }
+    return match;
+}
+
+int display_filelist_find_by_subname(const char *name, size_t len)
+{
+    int match = -1;
+    struct st_display_storage *si = &storage_info;
+    if (si->curr_drv.c < 0) {
+        return match;
+    }
+    struct st_file_info *fi = &si->file_info[si->curr_drv.c];
+    simple_list_data_t *data = simple_list_get_data_by_subname(&fi->list, name, len);
+    if (data) {
+        match = data->index;
+    }
+    return match;
 }
 
 //--------------------------------------------------------------------
@@ -631,8 +541,8 @@ void display_storage_lcd_debug_info(void)
 {
     printf("storage_info:\n");
     struct st_display_storage *si = &storage_info;
-    printf(" state:%u alarm_id:%x d88_drv.c:%d n:%d\n",
-        si->state, si->id, si->d88_drv.c, si->d88_drv.n
+    printf(" state:%u alarm_id:%x curr_drv.c:%d n:%d\n",
+        si->state, si->id, si->curr_drv.c, si->curr_drv.n
     );
     for(int drv=0; drv<MAX_DRIVES; drv++) {
         struct st_file_info *fi = &si->file_info[drv];

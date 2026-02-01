@@ -94,6 +94,8 @@ void disk_d88_disp_lcd(int drv);
 int disk_d88_mount(int drv, int side_number, const char *path, int offset);
 int disk_d88_unmount(int drv);
 
+void disk_d88_append_header(FIL *fp, int disk_type);
+
 int disk_d88_step(int drv, int track_number, int side_number);
 int disk_d88_step_in(int drv, int side_number);
 int disk_d88_step_out(int drv, int side_number);

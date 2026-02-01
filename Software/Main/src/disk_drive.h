@@ -13,6 +13,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <ff.h>
 
 typedef enum en_disk_drive_status {
     DISK_DRIVE_MOTOR = 1,
@@ -20,10 +21,17 @@ typedef enum en_disk_drive_status {
 //    DISK_DRIVE_HEAD_LOAD = 3,
 } disk_drive_status_t;
 
+enum en_disk_drive_types {
+    DISK_DRIVE_TYPE_2D = 0,
+    DISK_DRIVE_TYPE_2HD,    // 5inch 2HD or 8inch
+};
+
 void disk_drive_init();
 void disk_drive_change_type(int type);
+int disk_drive_get_type();
 bool disk_drive_mount(int drv, int sid_num, const char *path, int offset);
 void disk_drive_unmount(int drv);
+void disk_drive_append_header(FIL *fp, int image_type);
 void disk_drive_motor_on(int drv);
 void disk_drive_motor_off();
 bool disk_drive_is_motor_on();

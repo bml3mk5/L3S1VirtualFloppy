@@ -1,9 +1,9 @@
 # バーチャルフロッピーカード for 日立ベーシックマスターレベル3 / MB-S1
 
-![L3VirtualFloppy Main](l3vf_011.jpg)
-![L3VirtualFloppy Main + Controller](l3vf_013.jpg)
-![S1VirtualFloppy Main](s1vf_011.jpg)
-![S1VirtualFloppy Installed](s1vf_012.jpg)
+![L3VirtualFloppy Main](l3vfd_011.jpg)
+![L3VirtualFloppy Main + Controller](l3vfd_013.jpg)
+![S1VirtualFloppy Main](s1vfd_011.jpg)
+![S1VirtualFloppy Installed](s1vfd_012.jpg)
 ![Controller](controller1.jpg)
 
 ## フォルダ構成

@@ -18,6 +18,7 @@
 #include "fdc_common.h"
 #include "main.h"
 #include "display_storage.h"
+#include "display_disk.h"
 #include "event.h"
 #include "common.h"
 #include "shell_cmd.h"
@@ -73,7 +74,7 @@ static void d88_cmd_mount(int drv, uint16_t argc, const char *args)
         return;
     }
     const char* fpath = embeddedCliGetToken(args, 2);
-    if (!display_d88_mount(drv, fpath)) {
+    if (!display_disk_file_mount_by_path(drv, fpath)) {
         printf("Cannot mount d88 file '%s' on drive %d.\n", fpath, drv);
         return;
     }
@@ -82,7 +83,7 @@ static void d88_cmd_mount(int drv, uint16_t argc, const char *args)
 
 static void d88_cmd_unmount(int drv)
 {
-    display_d88_unmount(drv);
+    display_disk_file_unmount(drv);
     printf("Unmounted d88 file.\n");
 }
 

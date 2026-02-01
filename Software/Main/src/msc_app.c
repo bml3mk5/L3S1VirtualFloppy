@@ -17,7 +17,7 @@
 #include "bsp/board.h"
 #include "msc_app.h"
 #include "disk_ctl.h"
-#include "shell_cmd.h"
+//#include "shell_cmd.h"
 #include "common.h"
 #ifndef USE_CURRENT_DIRECTORY
 #include <malloc.h>

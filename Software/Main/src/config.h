@@ -22,7 +22,7 @@ void config_init(void);
 bool config_load(void);
 bool config_save(void);
 
-void config_flash_save();
+bool config_flash_save();
 
 void config_set_path(int drv, const char *path);
 void config_get_path(int drv, char *path, size_t size);

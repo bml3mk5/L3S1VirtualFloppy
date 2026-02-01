@@ -4,6 +4,8 @@
 
  * KiCAD 8
 
+## ファイル
+
     S1VirtualFloppy.kicad_pro ..... プロジェクトファイル for KiCAD
     S1VirtualFloppy.kicad_sch ..... 回路図ファイル for KiCAD
     S1VirtualFloppy.kicad_pcb ..... PCB設計ファイル for KiCAD
@@ -18,6 +20,8 @@
 ## Using Tools
 
  * KiCAD 8
+
+## Files
 
     S1VirtualFloppy.kicad_pro ..... Project file for KiCAD
     S1VirtualFloppy.kicad_sch ..... Schematics file for KiCAD
